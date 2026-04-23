@@ -18,9 +18,42 @@ cd ~/dotfiles && bash install.sh
 
 ## LSP dependencies
 
-| Language | LSP | Install |
-|----------|-----|---------|
-| Python | pyright, black | `micromamba install pyright black` |
-| C++/CUDA | clangd, clang-format | `module load clang/20` |
-| Julia | LanguageServer.jl | `julia -e 'using Pkg; Pkg.add("LanguageServer")'` |
-| R | languageserver | `R -e 'install.packages("languageserver")'` |
+### MPCDF clusters (raven, etc.)
+
+HPC module system provides most tools. `.bashrc` auto-loads them if `module` is available.
+
+```bash
+# Loaded automatically via .bashrc
+module load clang/20 julia/1.11 R/4.5
+
+# Python tools (one-time setup)
+micromamba install -n base pyright black
+```
+
+### General Linux / WSL
+
+```bash
+# Python
+pip install pyright black
+
+# C++/CUDA
+sudo apt install clangd clang-format        # Debian/Ubuntu
+# or: nix-env -iA nixpkgs.clang-tools      # NixOS
+
+# Julia
+julia -e 'using Pkg; Pkg.add("LanguageServer")'
+
+# R
+R -e 'install.packages("languageserver")'
+```
+
+### macOS
+
+```bash
+pip install pyright black
+brew install llvm                            # includes clangd, clang-format
+julia -e 'using Pkg; Pkg.add("LanguageServer")'
+R -e 'install.packages("languageserver")'
+```
+
+`install.sh` will report which LSPs are found and which are missing after setup.
