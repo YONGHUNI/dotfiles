@@ -104,6 +104,7 @@ let g:vim_markdown_folding_disabled = 1
 " ALE (LSP + Linting + Fixing)
 " ---------------------------------------------
 let g:ale_completion_enabled = 1
+let g:ale_disable_lsp = 0
 set omnifunc=ale#completion#OmniFunc
 
 let g:ale_linters = {
@@ -114,6 +115,9 @@ let g:ale_linters = {
 \  'julia': ['languageserver'],
 \  'r': ['languageserver'],
 \}
+
+" R languageserver: include .Rprofile for user library path
+let g:ale_r_languageserver_cmd = '.libPaths(c(path.expand("~/R/library"), .libPaths())); languageserver::run()'
 
 let g:ale_fixers = {
 \  'python': ['black'],
