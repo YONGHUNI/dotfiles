@@ -21,7 +21,6 @@ call plug#begin('~/.vim/plugged')
 Plug 'vim-airline/vim-airline'
 Plug 'vim-airline/vim-airline-themes'
 Plug 'dense-analysis/ale'
-Plug 'rust-lang/rust.vim'
 Plug 'preservim/vim-markdown'
 Plug 'JuliaEditorSupport/julia-vim'
 Plug 'quarto-dev/quarto-vim'
@@ -112,7 +111,6 @@ let g:ale_linters = {
 \  'cpp': ['clangd'],
 \  'c': ['clangd'],
 \  'cuda': ['clangd'],
-\  'rust': ['analyzer'],
 \  'julia': ['languageserver'],
 \  'r': ['languageserver'],
 \}
