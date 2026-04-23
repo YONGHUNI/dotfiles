@@ -51,8 +51,8 @@ set mouse=a
 set undofile
 set undodir=~/.vim/undodir
 
-" Clipboard (works with tmux)
-if has('unnamedplus')
+" Clipboard (only when display is available)
+if has('unnamedplus') && !empty($DISPLAY)
   set clipboard=unnamedplus
 endif
 
