@@ -126,6 +126,10 @@ let g:ale_fixers = {
 " Auto-fix on save
 let g:ale_fix_on_save = 1
 
+" Tab completion in insert mode
+inoremap <silent><expr> <Tab> pumvisible() ? "\<C-n>" : "\<Tab>"
+inoremap <silent><expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
+
 " LSP navigation
 nnoremap <silent> gd :ALEGoToDefinition<CR>
 nnoremap <silent> K :ALEHover<CR>
