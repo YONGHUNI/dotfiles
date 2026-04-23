@@ -8,7 +8,7 @@ echo "Source: $DOTFILES_DIR"
 echo ""
 
 # Link or copy dotfiles
-for f in .bashrc .vimrc .tmux.conf; do
+for f in .bashrc .vimrc .tmux.conf .Rprofile; do
     src="$DOTFILES_DIR/$f"
     dst="$HOME/$f"
     if [[ -f "$src" ]]; then
@@ -36,7 +36,7 @@ vim +PlugInstall +qall 2>/dev/null
 # Detect and report LSP availability
 echo ""
 echo "=== LSP Status ==="
-for cmd in pyright clangd rust-analyzer julia R; do
+for cmd in pyright clangd julia R; do
     if command -v "$cmd" &>/dev/null; then
         echo "  [OK] $cmd"
     else
