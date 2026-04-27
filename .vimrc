@@ -21,6 +21,7 @@ call plug#begin('~/.vim/plugged')
 Plug 'vim-airline/vim-airline'
 Plug 'vim-airline/vim-airline-themes'
 Plug 'dense-analysis/ale'
+Plug 'LnL7/vim-nix'
 Plug 'preservim/vim-markdown'
 Plug 'JuliaEditorSupport/julia-vim'
 Plug 'quarto-dev/quarto-vim'
@@ -77,6 +78,8 @@ if has("autocmd")
         autocmd FileType r setlocal sw=2 sts=2 et
         autocmd FileType julia setlocal sw=4 sts=4 et
         autocmd FileType quarto setlocal sw=4 sts=4 et spell textwidth=80 colorcolumn=80
+        autocmd FileType yaml setlocal sw=2 sts=2 et
+        autocmd FileType nix setlocal sw=2 sts=2 et
     augroup END
 endif
 
@@ -114,6 +117,8 @@ let g:ale_linters = {
 \  'cuda': ['clangd'],
 \  'julia': ['languageserver'],
 \  'r': ['languageserver'],
+\  'yaml': ['yamllint'],
+\  'nix': ['statix'],
 \}
 
 " R languageserver: include .Rprofile for user library path
@@ -123,6 +128,7 @@ let g:ale_fixers = {
 \  'python': ['black'],
 \  'cpp': ['clang-format'],
 \  'c': ['clang-format'],
+\  'nix': ['nixpkgs-fmt'],
 \}
 
 " Auto-fix on save
