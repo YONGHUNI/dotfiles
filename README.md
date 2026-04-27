@@ -1,64 +1,58 @@
 # dotfiles
 
-Unified shell, vim, and tmux configuration for WSL and HPC servers.
+Shared shell, Vim, tmux, and R configuration for WSL NixOS and MPCDF HPC servers such as Raven.
+
+The same dotfiles are installed on each host. Host-specific behavior is handled by conditional checks in the files, not by maintaining separate branches.
 
 ## Quick start
 
 ```bash
 git clone https://github.com/YONGHUNI/dotfiles.git ~/dotfiles
-cd ~/dotfiles && bash install.sh
+cd ~/dotfiles
+bash install.sh
 ```
+
+`install.sh` symlinks the dotfiles into `$HOME`, installs vim-plug when missing, installs Vim plugins, and reports available language tools.
 
 ## What's included
 
-- **`.bashrc`** — Powerline prompt with git status (+staged, ~modified, ?untracked), memory usage, timer, host indicator (green=local, red=remote). Conditional micromamba and HPC module loading.
-- **`.vimrc`** — ALE LSP (pyright, clangd, julia, R), Tab completion, vim-slime for tmux, auto-install vim-plug.
-- **`.tmux.conf`** — Prefix C-a, vim-style navigation/resizing, vi copy mode, Powerline status bar. Auto-disables mouse in VS Code.
-- **`.Rprofile`** — User library path for R packages (`~/R/library`).
-- **`install.sh`** — Symlinks dotfiles, installs vim-plug + plugins, reports LSP availability.
+- `.bashrc` - Powerline-style prompt with git status, memory usage, command timer, and local/remote host indicator. Loads HPC modules only when the `module` command exists. Initializes micromamba only when `~/bin/micromamba` exists.
+- `.vimrc` - vim-plug setup, ALE completion/linting/fixing, vim-slime tmux integration, and filetype rules for Python, C/CUDA/C++, R, Julia, Quarto, YAML, and Nix.
+- `.tmux.conf` - `C-a` prefix, vim-style pane navigation/resizing, vi copy mode, and a compact status bar. Mouse is disabled inside VS Code.
+- `.Rprofile` - Adds `~/R/library` to the R library path.
 
-## LSP dependencies
+## Environment Model
 
-### MPCDF clusters (raven, etc.)
+Use this repository for editor and shell behavior. Install executables in the host environment that owns them:
 
-HPC module system provides most tools. `.bashrc` auto-loads them if `module` is available.
+- WSL NixOS: base tools are managed in `~/nix-config`.
+- Raven/SUSE HPC: compilers, R, and Julia usually come from environment modules.
+- Project-specific data science tools: keep them in each project environment, not in these dotfiles.
+
+## Language Tooling
+
+Current Vim/ALE expectations:
+
+- Python: `pyright`, `black`
+- C/CUDA/C++: `clangd`, `clang-format`
+- YAML: `yamllint`
+- Nix: `statix`, `nixpkgs-fmt`
+- R: `languageserver`
+- Julia: `LanguageServer.jl`
+
+On Raven, `.bashrc` attempts to load:
 
 ```bash
-# Loaded automatically via .bashrc
 module load clang/20 julia/1.11 R/4.5
-
-# Python tools (one-time setup)
-micromamba install -n base pyright black
-
-# R languageserver (one-time setup, needs gcc module for compilation)
-module load gcc/13
-USE_BUNDLED_LIBUV=1 R -e 'install.packages("languageserver", lib="~/R/library", repos="https://cran.r-project.org")'
 ```
 
-### General Linux / WSL
+On WSL NixOS, Nix-related tools such as `statix` and `nixpkgs-fmt` are expected to come from `~/nix-config`.
+
+## Useful Checks
 
 ```bash
-# Python
-pip install pyright black
-
-# C++/CUDA
-sudo apt install clangd clang-format        # Debian/Ubuntu
-# or: nix-env -iA nixpkgs.clang-tools      # NixOS
-
-# Julia
-julia -e 'using Pkg; Pkg.add("LanguageServer")'
-
-# R
-R -e 'install.packages("languageserver")'
+vim some-file.nix
+:ALEInfo
 ```
 
-### macOS
-
-```bash
-pip install pyright black
-brew install llvm                            # includes clangd, clang-format
-julia -e 'using Pkg; Pkg.add("LanguageServer")'
-R -e 'install.packages("languageserver")'
-```
-
-`install.sh` will report which LSPs are found and which are missing after setup.
+For Nix files, `Enabled Linters` should include `statix`, and the fixer should include `nixpkgs-fmt`.
