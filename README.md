@@ -1,6 +1,6 @@
 # dotfiles
 
-Shared shell, Vim, tmux, and R configuration for WSL NixOS and MPCDF HPC servers such as Raven.
+Shared shell, Vim, tmux, and R configuration for Linux, NixOS, WSL, and remote servers.
 
 The same dotfiles are installed on each host. Host-specific behavior is handled by conditional checks in the files, not by maintaining separate branches.
 
@@ -26,7 +26,7 @@ bash install.sh
 Use this repository for editor and shell behavior. Install executables in the host environment that owns them:
 
 - WSL NixOS: base tools are managed in `~/nix-config`.
-- Raven/SUSE HPC: compilers, R, and Julia usually come from environment modules.
+- Remote servers and HPC systems: install or load executables using the environment provided by each host.
 - Project-specific data science tools: keep them in each project environment, not in these dotfiles.
 
 ## Language Tooling
@@ -40,11 +40,6 @@ Current Vim/ALE expectations:
 - R: `languageserver`
 - Julia: `LanguageServer.jl`
 
-On Raven, `.bashrc` attempts to load:
-
-```bash
-module load clang/20 julia/1.11 R/4.5
-```
 
 On WSL NixOS, Nix-related tools such as `statix` and `nixpkgs-fmt` are expected to come from `~/nix-config`.
 

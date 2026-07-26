@@ -3,17 +3,6 @@
 # PATH guard against duplication
 [[ ":$PATH:" != *":$HOME/bin:"* ]] && export PATH="$HOME/bin:$PATH"
 
-# Module loads (HPC only)
-if type module &>/dev/null; then
-    module load clang/20 julia/1.11 R/4.5 2>/dev/null
-fi
-
-# Kerberos ticket reminder for MPCDF SSH access.
-if [[ $- == *i* ]] && command -v klist >/dev/null 2>&1; then
-    if ! klist -s; then
-        echo "[kerberos] No valid ticket found. Run: kinit USER@REALM"
-    fi
-fi
 
 # ==========================================================
 # Custom Bash Prompt: Powerline with Git Status
