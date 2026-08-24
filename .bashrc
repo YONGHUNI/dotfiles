@@ -7,6 +7,41 @@
 [[ $- != *i* ]] && return
 
 # ==========================================================
+# Nix shell marker
+# ==========================================================
+
+# `nix develop` exposes IN_NIX_SHELL, but `nix shell` intentionally only
+# adjusts PATH and does not expose an equivalent prompt marker. For interactive
+# `nix shell` invocations, pass a private marker into the child shell. Other Nix
+# subcommands keep their original behavior. `--keep` also preserves the marker
+# when `nix shell --ignore-environment` is used.
+if command -v nix >/dev/null 2>&1; then
+    function nix() {
+        if [[ ${1:-} == "shell" ]]; then
+            local interactive_shell=1
+            local arg
+
+            for arg in "${@:2}"; do
+                case "$arg" in
+                    -c|--command)
+                        interactive_shell=0
+                        break
+                        ;;
+                esac
+            done
+
+            if ((interactive_shell)); then
+                shift
+                NIX_SHELL_KIND=shell command nix shell --keep NIX_SHELL_KIND "$@"
+                return $?
+            fi
+        fi
+
+        command nix "$@"
+    }
+fi
+
+# ==========================================================
 # Custom Bash Prompt: Powerline with environment + Git status
 # ==========================================================
 
@@ -114,35 +149,41 @@ function build_custom_prompt() {
     left_render+="${RESET}${FG_GRAY}${SEP_R}${RESET}"
 
     # 4. Shell / project environment context
-    # Pixi exports PIXI_PROJECT_NAME / PIXI_ENVIRONMENT_NAME.
-    # Nix shells export IN_NIX_SHELL. Set NIX_SHELL_NAME in a shellHook if
-    # a project wants a custom Nix shell label.
+    # `nix shell` is marked by the wrapper above; `nix develop` uses
+    # IN_NIX_SHELL. Pixi exports PIXI_PROJECT_NAME / PIXI_ENVIRONMENT_NAME.
+    local nix_label=""
+    local pixi_label=""
     local shell_raw=""
-    local shell_label=""
 
-    if [[ -n ${IN_NIX_SHELL:-} ]]; then
-        shell_label="nix"
-        [[ -n ${NIX_SHELL_NAME:-} ]] && shell_label="nix:${NIX_SHELL_NAME}"
+    if [[ ${NIX_SHELL_KIND:-} == "shell" ]]; then
+        nix_label=" nix:shell"
+    elif [[ -n ${IN_NIX_SHELL:-} ]]; then
+        if [[ -n ${NIX_SHELL_NAME:-} ]]; then
+            nix_label=" nix:${NIX_SHELL_NAME}"
+        else
+            nix_label=" nix:dev"
+        fi
     fi
 
     if [[ -n ${PIXI_ENVIRONMENT_NAME:-} || -n ${PIXI_PROJECT_NAME:-} ]]; then
-        local pixi_label=${PIXI_PROJECT_NAME:-${PIXI_ENVIRONMENT_NAME:-default}}
+        local pixi_name=${PIXI_PROJECT_NAME:-${PIXI_ENVIRONMENT_NAME:-default}}
         if [[ -n ${PIXI_PROJECT_NAME:-} && -n ${PIXI_ENVIRONMENT_NAME:-} && ${PIXI_ENVIRONMENT_NAME} != "default" ]]; then
-            pixi_label+="/${PIXI_ENVIRONMENT_NAME}"
+            pixi_name+="/${PIXI_ENVIRONMENT_NAME}"
         fi
-
-        if [[ -n $shell_label ]]; then
-            shell_label+=" + pixi:${pixi_label}"
-        else
-            shell_label="pixi:${pixi_label}"
-        fi
+        pixi_label=" pixi:${pixi_name}"
     fi
 
-    [[ -n $shell_label ]] && shell_raw="  ${shell_label} "
+    if [[ -n $nix_label && -n $pixi_label ]]; then
+        shell_raw=" ${nix_label} + ${pixi_label} "
+    elif [[ -n $nix_label ]]; then
+        shell_raw=" ${nix_label} "
+    elif [[ -n $pixi_label ]]; then
+        shell_raw=" ${pixi_label} "
+    fi
 
     # 5. Python environment
-    # Pixi already gets a dedicated shell module, so suppress the Conda-style
-    # duplicate that Pixi may expose through CONDA_DEFAULT_ENV.
+    # Pixi already appears in the shell module with the Python logo, so suppress
+    # the Conda-style duplicate that Pixi may expose through CONDA_DEFAULT_ENV.
     local py_raw=""
     if [[ -z ${PIXI_ENVIRONMENT_NAME:-} && -z ${PIXI_PROJECT_NAME:-} ]]; then
         if [[ -n ${VIRTUAL_ENV:-} ]]; then
