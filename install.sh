@@ -8,7 +8,7 @@ echo "Source: $DOTFILES_DIR"
 echo ""
 
 # Link managed dotfiles.
-for f in .bash_profile .bashrc .vimrc .tmux.conf .Rprofile; do
+for f in .bash_profile .bashrc .vimrc .tmux.conf; do
     src="$DOTFILES_DIR/$f"
     dst="$HOME/$f"
 
