@@ -34,36 +34,40 @@ A global `.Rprofile` is intentionally not managed. R library paths and packages 
 
 The first prompt line contains host, memory, and command-time information on the left. Environment and Git information is kept on the right.
 
-A wide terminal looks roughly like:
+A wide terminal can look roughly like:
 
 ```text
-nixos-research  MEM ...  20ms                         pixi:my-project  master
+nixos-research  MEM ...  20ms               nix:dev +  pixi:my-project  main
 ╭─ ♥ 17:40:05 | 0 | ~/data/projects/my-project
 ╰─$
 ```
 
-When the left and right sections no longer fit, the right-side modules automatically move to a separate right-aligned line instead of overwriting the left side:
-
-```text
-nixos-research  MEM ...  20ms
-                                                     pixi:my-project  master
-╭─ ♥ 17:40:05 | 0 | ~/data/projects/my-project
-╰─$
-```
-
-The environment module is detected at prompt-render time, so entering or leaving a nested project shell is reflected without editing the prompt configuration.
+When the left and right sections no longer fit, the right-side modules automatically move to a separate right-aligned line instead of overwriting the left side.
 
 Recognized contexts:
 
-- Nix development shell: `IN_NIX_SHELL`
-- Pixi shell: `PIXI_PROJECT_NAME` / `PIXI_ENVIRONMENT_NAME`
-- Python virtual environment: `VIRTUAL_ENV`
-- Conda environment: `CONDA_DEFAULT_ENV`
+- interactive `nix shell`: displayed as ` nix:shell`
+- `nix develop`: displayed as ` nix:dev`, or ` nix:<name>` when `NIX_SHELL_NAME` is set
+- Pixi: displayed as ` pixi:<project>` (and includes a non-default Pixi environment name when present)
+- Python virtual environment: ` <venv>`
+- Conda environment: ` <conda-env>`
 - Git repository: branch plus staged, modified, and untracked counts
 
-Pixi receives its own shell module and the Conda-style Python module is suppressed while Pixi is active, avoiding duplicate environment labels.
+When Nix and Pixi are nested, they are grouped in one environment segment, for example:
 
-For a custom Nix development-shell label, set `NIX_SHELL_NAME` in the project's `shellHook`, for example:
+```text
+  nix:dev +  pixi:my-project   main ~1
+```
+
+Pixi uses the Python logo and suppresses the duplicate Conda-style environment label that Pixi may expose internally.
+
+### `nix shell` handling
+
+Unlike `nix develop`, interactive `nix shell` does not expose a dedicated prompt marker. The Bash configuration therefore wraps only the interactive `nix shell` subcommand and passes `NIX_SHELL_KIND=shell` into the spawned shell.
+
+Other Nix commands keep their normal behavior. In particular, `nix shell ... -c ...` / `--command ...` is passed through unchanged because it executes a command rather than opening an interactive shell.
+
+For a custom `nix develop` label, set `NIX_SHELL_NAME` in the project's `shellHook`, for example:
 
 ```nix
 shellHook = ''
@@ -79,7 +83,7 @@ Use this repository for shell and editor behavior. Install executables in the en
 
 - NixOS hosts: system and shared user tools are managed by `nix-config`.
 - WSL or other Linux systems not managed by Home Manager: use `install.sh` for these dotfiles and let the host manage executables.
-- Project-specific runtimes and dependencies: keep them in each project environment (`nix develop`, `pixi shell`, Conda/venv, `renv`, etc.) rather than hard-coding them here.
+- Project-specific runtimes and dependencies: keep them in each project environment (`nix develop`, `nix shell`, `pixi shell`, Conda/venv, `renv`, etc.) rather than hard-coding them here.
 - Institution-specific SSH, Kerberos, module, proxy, or cluster configuration: keep it out of this repository and configure it only on hosts that still need it.
 
 ## Language tooling
