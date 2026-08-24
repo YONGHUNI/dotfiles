@@ -121,9 +121,6 @@ let g:ale_linters = {
 \  'nix': ['statix'],
 \}
 
-" R languageserver: include .Rprofile for user library path
-let g:ale_r_languageserver_cmd = '.libPaths(c(path.expand("~/R/library"), .libPaths())); languageserver::run()'
-
 let g:ale_fixers = {
 \  'python': ['black'],
 \  'cpp': ['clang-format'],
