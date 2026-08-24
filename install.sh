@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -7,35 +7,38 @@ echo "=== Dotfiles installer ==="
 echo "Source: $DOTFILES_DIR"
 echo ""
 
-# Link or copy dotfiles
-for f in .bashrc .vimrc .tmux.conf .Rprofile; do
+# Link managed dotfiles.
+for f in .bash_profile .bashrc .vimrc .tmux.conf .Rprofile; do
     src="$DOTFILES_DIR/$f"
     dst="$HOME/$f"
+
     if [[ -f "$src" ]]; then
-        if [[ -f "$dst" ]] && [[ ! -L "$dst" ]]; then
+        if [[ -f "$dst" && ! -L "$dst" ]]; then
             echo "Backing up $dst -> ${dst}.bak"
             cp "$dst" "${dst}.bak"
         fi
+
         ln -sf "$src" "$dst"
         echo "Linked $f"
     fi
 done
 
-# Create vim undo directory
-mkdir -p ~/.vim/undodir
+# Create Vim's persistent undo directory.
+mkdir -p "$HOME/.vim/undodir"
 
-# Install vim-plug and plugins
-if [[ ! -f ~/.vim/autoload/plug.vim ]]; then
+# Install vim-plug and plugins for hosts that are not managing Vim through Nix.
+if [[ ! -f "$HOME/.vim/autoload/plug.vim" ]]; then
     echo "Installing vim-plug..."
-    curl -fLo ~/.vim/autoload/plug.vim --create-dirs \
+    curl -fLo "$HOME/.vim/autoload/plug.vim" --create-dirs \
         https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
 fi
-echo "Installing vim plugins..."
+
+echo "Installing Vim plugins..."
 vim +PlugInstall +qall 2>/dev/null
 
-# Detect and report LSP availability
+# Detect and report language-tool availability without installing runtimes.
 echo ""
-echo "=== LSP Status ==="
+echo "=== Language tool status ==="
 for cmd in pyright clangd julia R; do
     if command -v "$cmd" &>/dev/null; then
         echo "  [OK] $cmd"
