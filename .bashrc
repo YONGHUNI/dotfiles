@@ -12,9 +12,8 @@
 
 # `nix develop` exposes IN_NIX_SHELL, but `nix shell` intentionally only
 # adjusts PATH and does not expose an equivalent prompt marker. For interactive
-# `nix shell` invocations, pass a private marker into the child shell. Other Nix
-# subcommands keep their original behavior. `--keep` also preserves the marker
-# when `nix shell --ignore-environment` is used.
+# `nix shell` invocations, explicitly set a private marker in the child shell.
+# Other Nix subcommands keep their original behavior.
 if command -v nix >/dev/null 2>&1; then
     function nix() {
         if [[ ${1:-} == "shell" ]]; then
@@ -32,7 +31,7 @@ if command -v nix >/dev/null 2>&1; then
 
             if ((interactive_shell)); then
                 shift
-                NIX_SHELL_KIND=shell command nix shell --keep NIX_SHELL_KIND "$@"
+                command nix shell --set-env-var NIX_SHELL_KIND shell "$@"
                 return $?
             fi
         fi
