@@ -1,6 +1,6 @@
 # Positron Pixi-Nix shim
 
-This repository includes an optional portable shim for Positron's Pixi discovery when Pixi is intentionally provided by a project-local Nix dev shell instead of installed globally.
+This repository includes an optional portable shim for Positron's Pixi discovery on remote Linux systems where Pixi is intentionally provided by a project-local Nix dev shell instead of installed globally.
 
 ## Install
 
@@ -17,6 +17,12 @@ The installer copies `bin/pixi-nix-shim` to:
 
 It is idempotent. If an unrelated file already exists at that path, the installer refuses to overwrite it. Use `--force` only when you intentionally want the installer to back up the existing file and replace it.
 
+The shared `.bashrc` keeps both `~/.local/bin` and `~/.pixi/bin` on `PATH`. This makes rootless-Nix commands such as `nix` available normally while keeping the shim available as the interactive `pixi` command. After updating the dotfiles, start a new shell or run:
+
+```bash
+source ~/.bashrc
+```
+
 ## How it works
 
 The shim:
@@ -25,27 +31,34 @@ The shim:
 2. canonicalizes symlinked paths;
 3. walks upward to the nearest `flake.nix`;
 4. finds `nix` from the current `PATH` or common user/system installation locations;
-5. executes:
+5. removes the shim directory from the child `PATH` before entering the dev shell;
+6. enters the project with `nix develop`;
+7. requires the resulting `pixi` executable to come from `/nix/store/.../bin/pixi` before forwarding the original arguments.
 
-```bash
-nix develop <flake-root> -c pixi ...
+Conceptually:
+
+```text
+~/.pixi/bin/pixi
+        ↓
+nix develop <flake-root>
+        ↓
+/nix/store/.../bin/pixi <original arguments>
 ```
 
-This keeps the Pixi executable project-local and lets each flake control the Pixi version.
+This keeps the Pixi executable project-local and lets each flake control the Pixi version. Removing the shim path before `nix develop` prevents recursive self-invocation, including from a terminal that Positron has already activated as a Pixi environment. Requiring the dev-shell Pixi to come from the Nix store also prevents an unrelated host installation from being selected silently.
 
-The shim deliberately contains no `/nix/store/<hash>-...` paths, so Nix upgrades and garbage collection do not invalidate it. It also does not alter the login shell's `PATH`, install Pixi, install Nix, or configure CUDA.
+The shim deliberately contains no fixed `/nix/store/<hash>-...` paths, so Nix upgrades and garbage collection do not invalidate it. It does not install Pixi, install Nix, configure CUDA, or modify project dependencies.
 
 Known Nix locations checked when Positron starts with a reduced GUI environment include:
 
 ```text
 ~/.local/bin/nix
 ~/.nix-profile/bin/nix
-/run/current-system/sw/bin/nix
 /usr/local/bin/nix
 /usr/bin/nix
 ```
 
-This covers the `rootless-nix-bootstrap` wrapper, normal single-user Nix installations, NixOS, and common system installations.
+The first path is the default wrapper location used by [`rootless-nix-bootstrap`](https://github.com/YONGHUNI/rootless-nix-bootstrap).
 
 ## Requirements
 
@@ -53,9 +66,9 @@ This covers the `rootless-nix-bootstrap` wrapper, normal single-user Nix install
 - `nix`
 - GNU/coreutils-style `realpath` and `dirname`
 - a project with `flake.nix`
-- a dev shell that actually provides `pixi`
+- a dev shell that provides `pixi` through Nix
 
-If the selected dev shell does not provide Pixi, the recursion guard fails explicitly rather than repeatedly invoking the shim.
+If the selected dev shell does not provide Pixi, the shim exits with an explicit error instead of invoking itself again or falling back to an unrelated global Pixi.
 
 ## Update
 
