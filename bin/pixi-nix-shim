@@ -96,12 +96,29 @@ while [[ ! -f "$flake_root/flake.nix" ]]; do
 done
 flake_root=$($realpath_bin -- "$flake_root")
 
-# If the devShell does not provide Pixi, `nix develop ... -c pixi` could resolve
-# back to this shim. Fail explicitly instead of recursing forever.
-if [[ "${PIXI_NIX_SHIM_ACTIVE:-0}" == 1 ]]; then
-    printf 'pixi-nix-shim: recursive invocation detected; does this flake provide pixi?\n' >&2
-    exit 126
-fi
-export PIXI_NIX_SHIM_ACTIVE=1
+# Keep the shim itself out of the PATH inherited by `nix develop`. If the
+# selected devShell provides Pixi, its Pixi executable is found normally. If it
+# does not, the command fails instead of resolving back to this shim and
+# recursing. This also allows the shim to be called again from a Positron/Pixi
+# activated terminal without carrying a persistent recursion marker.
+shim_dir=$(cd "$($dirname_bin -- "${BASH_SOURCE[0]}")" && pwd -P)
+clean_path=""
+IFS=: read -r -a path_entries <<< "${PATH:-}"
+for path_entry in "${path_entries[@]}"; do
+    [[ -n "$path_entry" ]] || continue
 
-exec "$nix_bin" develop "$flake_root" -c pixi "$@"
+    if [[ "$path_entry" == "$shim_dir" || "$path_entry" == "$HOME/.pixi/bin" ]]; then
+        continue
+    fi
+
+    if [[ -z "$clean_path" ]]; then
+        clean_path=$path_entry
+    else
+        clean_path+=":$path_entry"
+    fi
+done
+
+[[ -n "$clean_path" ]] || fail 'PATH became empty after removing the shim directory'
+
+exec env -u PIXI_NIX_SHIM_ACTIVE PATH="$clean_path" \
+    "$nix_bin" develop "$flake_root" -c pixi "$@"
