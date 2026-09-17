@@ -21,7 +21,7 @@ cd ~/nix-config
 nix flake update dotfiles
 ```
 
-The shared Bash configuration keeps the usual user command directories available on `PATH`, including `~/.local/bin` and `~/bin`. It also exposes `~/.pixi/bin` ahead of them when present so the optional Pixi-Nix shim remains the `pixi` CLI entry point. This is particularly useful on remote Linux systems where [`rootless-nix-bootstrap`](https://github.com/YONGHUNI/rootless-nix-bootstrap) installs its `nix` wrapper in `~/.local/bin`.
+The shared Bash configuration keeps the usual user command directories available on `PATH`, including `~/.local/bin` and `~/bin`. It deliberately does **not** add `~/.pixi/bin` to the interactive shell `PATH`. On rootless Linux systems, `nix` remains available through `~/.local/bin`, while `pixi` becomes a normal shell command only after entering a project with `nix develop`. The optional Positron shim still lives at `~/.pixi/bin/pixi`, which Positron checks as a fallback location even when that directory is not on `PATH`.
 
 ## Optional Positron / Pixi integration
 
@@ -32,7 +32,7 @@ cd ~/dotfiles
 ./install-pixi-nix-shim.sh
 ```
 
-The installer places the shim at `~/.pixi/bin/pixi`, the fallback location Positron checks for Pixi. The shim locates the nearest `flake.nix` and invokes that project's `pixi` flake app directly with `nix run`.
+The installer places the shim at `~/.pixi/bin/pixi`, the fallback location Positron checks for Pixi. The shared shell configuration intentionally leaves this directory off `PATH`, so the shim is an IDE integration endpoint rather than a global interactive Pixi command. The shim locates the nearest `flake.nix` and invokes that project's `pixi` flake app directly with `nix run`.
 
 Conceptually:
 
@@ -64,7 +64,7 @@ See [`docs/positron-pixi-nix-shim.md`](docs/positron-pixi-nix-shim.md) for behav
 - `.bashrc` - adaptive Powerline-style prompt with local/remote host state, memory usage, command timing, environment context, Git status, and user-command PATH handling.
 - `.vimrc` - vim-plug setup, ALE completion/linting/fixing, vim-slime tmux integration, and filetype rules for Python, C/CUDA/C++, R, Julia, Quarto, YAML, and Nix.
 - `.tmux.conf` - `C-a` prefix, vim-style pane navigation/resizing, vi copy mode, and a compact status bar. Mouse is disabled inside VS Code-compatible terminals.
-- `bin/pixi-nix-shim` - portable Positron-to-Pixi bridge that invokes the project's Nix-pinned Pixi app without entering the project devShell.
+- `bin/pixi-nix-shim` - portable Positron-to-Pixi bridge at Positron's fallback location; it is intentionally kept off the normal interactive `PATH` and invokes the project's Nix-pinned Pixi app without entering the project devShell.
 - `install-pixi-nix-shim.sh` - safe installer/updater for `~/.pixi/bin/pixi`; unrelated existing files are not overwritten unless explicitly requested.
 
 A global `.Rprofile` is intentionally not managed. R library paths and packages should come from the active project environment rather than a shared `~/R/library`, which keeps Nix/Pixi/renv-style environments isolated and reproducible.
