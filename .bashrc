@@ -1,7 +1,12 @@
 # ~/.bashrc — shared interactive Bash configuration
 
-# Keep a small user-local bin directory available without duplicating PATH entries.
-[[ ":$PATH:" != *":$HOME/bin:"* ]] && export PATH="$HOME/bin:$PATH"
+# Keep user-level command directories available without duplicating PATH entries.
+# ~/.pixi/bin hosts the optional Pixi-Nix shim used both by Positron discovery
+# and as the normal `pixi` CLI entry point on hosts where Pixi is project-local.
+for user_bin in "$HOME/.pixi/bin" "$HOME/bin"; do
+    [[ ":$PATH:" != *":$user_bin:"* ]] && export PATH="$user_bin:$PATH"
+done
+unset user_bin
 
 # The rest of this file is interactive-shell behavior only.
 [[ $- != *i* ]] && return
