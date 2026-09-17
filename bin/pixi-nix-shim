@@ -28,22 +28,19 @@ find_executable() {
 
 # Positron may launch with a smaller PATH than an interactive shell. Resolve
 # required tools explicitly instead of embedding machine-specific Nix store
-# paths or mutating PATH globally.
+# paths or mutating the user's login environment.
 nix_bin=$(find_executable nix \
     "$HOME/.local/bin/nix" \
     "$HOME/.nix-profile/bin/nix" \
-    /run/current-system/sw/bin/nix \
     /usr/local/bin/nix \
     /usr/bin/nix) || fail 'nix executable not found'
 
 realpath_bin=$(find_executable realpath \
-    /run/current-system/sw/bin/realpath \
     /usr/local/bin/realpath \
     /usr/bin/realpath \
     /bin/realpath) || fail 'realpath executable not found'
 
 dirname_bin=$(find_executable dirname \
-    /run/current-system/sw/bin/dirname \
     /usr/local/bin/dirname \
     /usr/bin/dirname \
     /bin/dirname) || fail 'dirname executable not found'
@@ -96,20 +93,16 @@ while [[ ! -f "$flake_root/flake.nix" ]]; do
 done
 flake_root=$($realpath_bin -- "$flake_root")
 
-# Keep the shim itself out of the PATH inherited by `nix develop`. If the
-# selected devShell provides Pixi, its Pixi executable is found normally. If it
-# does not, the command fails instead of resolving back to this shim and
-# recursing. This also allows the shim to be called again from a Positron/Pixi
-# activated terminal without carrying a persistent recursion marker.
+# Remove this shim's directory before entering the devShell. This prevents
+# `nix develop -c pixi` from ever resolving back to the shim itself. No
+# persistent recursion marker is used, so the command also works normally from
+# a terminal that Positron has already activated as a Pixi environment.
 shim_dir=$(cd "$($dirname_bin -- "${BASH_SOURCE[0]}")" && pwd -P)
 clean_path=""
 IFS=: read -r -a path_entries <<< "${PATH:-}"
 for path_entry in "${path_entries[@]}"; do
     [[ -n "$path_entry" ]] || continue
-
-    if [[ "$path_entry" == "$shim_dir" || "$path_entry" == "$HOME/.pixi/bin" ]]; then
-        continue
-    fi
+    [[ "$path_entry" == "$shim_dir" || "$path_entry" == "$HOME/.pixi/bin" ]] && continue
 
     if [[ -z "$clean_path" ]]; then
         clean_path=$path_entry
@@ -117,8 +110,30 @@ for path_entry in "${path_entries[@]}"; do
         clean_path+=":$path_entry"
     fi
 done
-
 [[ -n "$clean_path" ]] || fail 'PATH became empty after removing the shim directory'
 
-exec env -u PIXI_NIX_SHIM_ACTIVE PATH="$clean_path" \
-    "$nix_bin" develop "$flake_root" -c pixi "$@"
+export PATH="$clean_path"
+unset PIXI_NIX_SHIM_ACTIVE 2>/dev/null || true
+
+# Resolve Pixi *inside* the project's Nix devShell, and require the executable
+# to come from the Nix store. This prevents an unrelated host/global Pixi from
+# silently taking over when a project's flake forgot to provide Pixi.
+exec "$nix_bin" develop "$flake_root" -c bash -c '
+    pixi_bin=$(type -P pixi 2>/dev/null || true)
+
+    if [[ -z "$pixi_bin" ]]; then
+        echo "pixi-nix-shim: project devShell does not provide pixi" >&2
+        exit 127
+    fi
+
+    case "$pixi_bin" in
+        /nix/store/*/bin/pixi)
+            ;;
+        *)
+            echo "pixi-nix-shim: refusing non-Nix Pixi: $pixi_bin" >&2
+            exit 126
+            ;;
+    esac
+
+    exec "$pixi_bin" "$@"
+' pixi-nix-shim "$@"
