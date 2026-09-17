@@ -17,10 +17,21 @@ The installer copies `bin/pixi-nix-shim` to:
 
 It is idempotent. If an unrelated file already exists at that path, the installer refuses to overwrite it. Use `--force` only when you intentionally want the installer to back up the existing file and replace it.
 
-The shared `.bashrc` keeps both `~/.local/bin` and `~/.pixi/bin` on `PATH`. This makes rootless-Nix commands such as `nix` available normally while keeping the shim available as the interactive `pixi` command. After updating the dotfiles, start a new shell or run:
+The shared `.bashrc` keeps `~/.local/bin` on `PATH` so rootless-Nix commands such as `nix` remain available, but deliberately leaves `~/.pixi/bin` off the interactive shell `PATH`. As a result, `pixi` is not a normal shell command outside a project devShell. Positron still checks `~/.pixi/bin/pixi` directly as its fallback installation location, so IDE discovery continues to use the shim.
+
+After updating the dotfiles, start a new shell or run:
 
 ```bash
 source ~/.bashrc
+hash -r
+```
+
+Expected shell behavior is:
+
+```text
+outside nix develop:  pixi -> not found
+inside nix develop:   pixi -> /nix/store/.../bin/pixi
+Positron discovery:   ~/.pixi/bin/pixi -> shim -> nix run <flake>#pixi
 ```
 
 ## How it works
