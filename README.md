@@ -2,7 +2,7 @@
 
 Shared Bash, Vim, and tmux configuration for Linux, NixOS, WSL, and remote Linux systems.
 
-The repository keeps host-independent shell/editor behavior in one place. Machine-specific packages, services, credentials, and institutional access configuration belong in the host configuration instead of these dotfiles.
+The repository keeps host-independent shell/editor behavior and small user-level workflow integrations in one place. Machine-specific packages, services, credentials, and institutional access configuration belong in the host configuration instead of these dotfiles.
 
 ## Quick start
 
@@ -21,12 +21,33 @@ cd ~/nix-config
 nix flake update dotfiles
 ```
 
+## Optional Positron / Pixi integration
+
+For hosts where Positron needs to discover Pixi but Pixi is intentionally provided by each project's Nix dev shell, this repository includes a portable shim:
+
+```bash
+cd ~/dotfiles
+./install-pixi-nix-shim.sh
+```
+
+The installer places the shim at `~/.pixi/bin/pixi`, the fallback location Positron checks for Pixi. The shim finds the nearest `flake.nix` and delegates the requested Pixi command through:
+
+```bash
+nix develop <flake-root> -c pixi ...
+```
+
+This helper is optional and is not part of the normal `install.sh` flow. It does not install Nix, Pixi, CUDA, or project dependencies. It also avoids machine-specific `/nix/store/<hash>-...` paths so the same source can be used across NixOS, normal Nix installations, and remote Linux systems using [`rootless-nix-bootstrap`](https://github.com/YONGHUNI/rootless-nix-bootstrap).
+
+See [`docs/positron-pixi-nix-shim.md`](docs/positron-pixi-nix-shim.md) for behavior, requirements, update handling, and overwrite safeguards.
+
 ## What's included
 
 - `.bash_profile` - sources `.bashrc` for login Bash sessions.
 - `.bashrc` - adaptive Powerline-style prompt with local/remote host state, memory usage, command timing, environment context, and Git status.
 - `.vimrc` - vim-plug setup, ALE completion/linting/fixing, vim-slime tmux integration, and filetype rules for Python, C/CUDA/C++, R, Julia, Quarto, YAML, and Nix.
 - `.tmux.conf` - `C-a` prefix, vim-style pane navigation/resizing, vi copy mode, and a compact status bar. Mouse is disabled inside VS Code-compatible terminals.
+- `bin/pixi-nix-shim` - portable Positron-to-Pixi bridge that enters the project's Nix dev shell before invoking Pixi.
+- `install-pixi-nix-shim.sh` - safe installer/updater for `~/.pixi/bin/pixi`; unrelated existing files are not overwritten unless explicitly requested.
 
 A global `.Rprofile` is intentionally not managed. R library paths and packages should come from the active project environment rather than a shared `~/R/library`, which keeps Nix/Pixi/renv-style environments isolated and reproducible.
 
@@ -84,6 +105,7 @@ Use this repository for shell and editor behavior. Install executables in the en
 - NixOS hosts: system and shared user tools are managed by `nix-config`.
 - WSL or other Linux systems not managed by Home Manager: use `install.sh` for these dotfiles and let the host manage executables.
 - Project-specific runtimes and dependencies: keep them in each project environment (`nix develop`, `nix shell`, `pixi shell`, Conda/venv, `renv`, etc.) rather than hard-coding them here.
+- Optional user-level integration shims may live here when they are host-independent and do not own the underlying runtime or project dependencies.
 - Institution-specific SSH, Kerberos, module, proxy, or cluster configuration: keep it out of this repository and configure it only on hosts that still need it.
 
 ## Language tooling
