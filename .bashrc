@@ -1,11 +1,12 @@
 # ~/.bashrc — shared interactive Bash configuration
 
-# Keep user-level command directories available without duplicating PATH entries.
-# Iterate from lowest to highest precedence because each missing entry is prepended.
-# ~/.local/bin carries ordinary user commands (including rootless Nix), while
-# ~/.pixi/bin is kept first so the optional Pixi-Nix shim remains the `pixi`
-# entry point even if another user-level Pixi installation exists.
-for user_bin in "$HOME/.local/bin" "$HOME/bin" "$HOME/.pixi/bin"; do
+# Keep ordinary user-level command directories available without duplicating PATH
+# entries. The optional Positron Pixi-Nix shim lives at ~/.pixi/bin/pixi, but
+# ~/.pixi/bin is deliberately NOT added to the interactive shell PATH: Pixi
+# should become a normal shell command only after entering a project's Nix
+# development shell. Positron can still discover the shim at its standard
+# fallback location ~/.pixi/bin/pixi.
+for user_bin in "$HOME/.local/bin" "$HOME/bin"; do
     [[ ":${PATH:-}:" == *":$user_bin:"* ]] || PATH="$user_bin${PATH:+:$PATH}"
 done
 export PATH
