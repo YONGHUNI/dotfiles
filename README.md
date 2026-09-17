@@ -21,29 +21,37 @@ cd ~/nix-config
 nix flake update dotfiles
 ```
 
+The shared Bash configuration keeps the usual user command directories available on `PATH`, including `~/.local/bin` and `~/bin`. It also exposes `~/.pixi/bin` ahead of them when present so the optional Pixi-Nix shim remains the `pixi` CLI entry point. This is particularly useful on remote Linux systems where [`rootless-nix-bootstrap`](https://github.com/YONGHUNI/rootless-nix-bootstrap) installs its `nix` wrapper in `~/.local/bin`.
+
 ## Optional Positron / Pixi integration
 
-For hosts where Positron needs to discover Pixi but Pixi is intentionally provided by each project's Nix dev shell, this repository includes a portable shim:
+For remote Linux hosts where Positron needs to discover Pixi but Pixi is intentionally provided by each project's Nix dev shell, this repository includes a portable shim:
 
 ```bash
 cd ~/dotfiles
 ./install-pixi-nix-shim.sh
 ```
 
-The installer places the shim at `~/.pixi/bin/pixi`, the fallback location Positron checks for Pixi. The shim finds the nearest `flake.nix` and delegates the requested Pixi command through:
+The installer places the shim at `~/.pixi/bin/pixi`, the fallback location Positron checks for Pixi. The shim locates the nearest `flake.nix`, enters that project's Nix dev shell, and forwards the original Pixi command to the Pixi executable provided by the dev shell.
 
-```bash
-nix develop <flake-root> -c pixi ...
+Conceptually:
+
+```text
+~/.pixi/bin/pixi
+        ↓
+nix develop <flake-root>
+        ↓
+/nix/store/.../bin/pixi <original arguments>
 ```
 
-This helper is optional and is not part of the normal `install.sh` flow. It does not install Nix, Pixi, CUDA, or project dependencies. It also avoids machine-specific `/nix/store/<hash>-...` paths so the same source can be used across NixOS, normal Nix installations, and remote Linux systems using [`rootless-nix-bootstrap`](https://github.com/YONGHUNI/rootless-nix-bootstrap).
+This helper is optional and is not part of the normal `install.sh` flow. It does not install Nix, Pixi, CUDA, or project dependencies, and it contains no machine-specific `/nix/store/<hash>-...` paths. The shim removes its own directory from the child `PATH` before entering the dev shell, preventing recursive invocation, and rejects unrelated non-Nix Pixi executables if the project forgot to provide Pixi.
 
 See [`docs/positron-pixi-nix-shim.md`](docs/positron-pixi-nix-shim.md) for behavior, requirements, update handling, and overwrite safeguards.
 
 ## What's included
 
 - `.bash_profile` - sources `.bashrc` for login Bash sessions.
-- `.bashrc` - adaptive Powerline-style prompt with local/remote host state, memory usage, command timing, environment context, and Git status.
+- `.bashrc` - adaptive Powerline-style prompt with local/remote host state, memory usage, command timing, environment context, Git status, and user-command PATH handling.
 - `.vimrc` - vim-plug setup, ALE completion/linting/fixing, vim-slime tmux integration, and filetype rules for Python, C/CUDA/C++, R, Julia, Quarto, YAML, and Nix.
 - `.tmux.conf` - `C-a` prefix, vim-style pane navigation/resizing, vi copy mode, and a compact status bar. Mouse is disabled inside VS Code-compatible terminals.
 - `bin/pixi-nix-shim` - portable Positron-to-Pixi bridge that enters the project's Nix dev shell before invoking Pixi.
