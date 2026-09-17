@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# Source: YONGHUNI/dotfiles/bin/pixi-nix-shim
+set -Eeuo pipefail
+
+fail() {
+    printf 'pixi-nix-shim: %s\n' "$*" >&2
+    exit 127
+}
+
+find_executable() {
+    local name=$1 candidate
+    shift
+
+    if candidate=$(type -P "$name" 2>/dev/null); then
+        printf '%s\n' "$candidate"
+        return 0
+    fi
+
+    for candidate in "$@"; do
+        if [[ -x "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+# Positron may launch with a smaller PATH than an interactive shell. Resolve
+# required tools explicitly instead of embedding machine-specific Nix store
+# paths or mutating PATH globally.
+nix_bin=$(find_executable nix \
+    "$HOME/.local/bin/nix" \
+    "$HOME/.nix-profile/bin/nix" \
+    /run/current-system/sw/bin/nix \
+    /usr/local/bin/nix \
+    /usr/bin/nix) || fail 'nix executable not found'
+
+realpath_bin=$(find_executable realpath \
+    /run/current-system/sw/bin/realpath \
+    /usr/local/bin/realpath \
+    /usr/bin/realpath \
+    /bin/realpath) || fail 'realpath executable not found'
+
+dirname_bin=$(find_executable dirname \
+    /run/current-system/sw/bin/dirname \
+    /usr/local/bin/dirname \
+    /usr/bin/dirname \
+    /bin/dirname) || fail 'dirname executable not found'
+
+# Canonicalize the working directory because Nix path inputs reject paths whose
+# intermediate components are symlinks (for example ~/data -> /data/<user>).
+project_dir=$(pwd -P)
+
+# Positron commonly supplies --manifest-path when activating a discovered Pixi
+# environment. Use it when present because the working directory need not be the
+# project root.
+args=("$@")
+for ((i = 0; i < ${#args[@]}; i++)); do
+    case "${args[$i]}" in
+        --manifest-path)
+            if ((i + 1 >= ${#args[@]})); then
+                printf 'pixi-nix-shim: --manifest-path requires a value\n' >&2
+                exit 64
+            fi
+            manifest=${args[$((i + 1))]}
+            if ! manifest=$($realpath_bin -- "$manifest" 2>/dev/null); then
+                fail "cannot resolve manifest path: ${args[$((i + 1))]}"
+            fi
+            project_dir=$($dirname_bin -- "$manifest")
+            break
+            ;;
+        --manifest-path=*)
+            manifest=${args[$i]#--manifest-path=}
+            [[ -n "$manifest" ]] || {
+                printf 'pixi-nix-shim: --manifest-path requires a value\n' >&2
+                exit 64
+            }
+            if ! manifest=$($realpath_bin -- "$manifest" 2>/dev/null); then
+                fail "cannot resolve manifest path: ${args[$i]#--manifest-path=}"
+            fi
+            project_dir=$($dirname_bin -- "$manifest")
+            break
+            ;;
+    esac
+done
+
+# The manifest may live below the flake root. Walk upward and use the nearest
+# flake so every project controls the Pixi version provided by its devShell.
+flake_root=$project_dir
+while [[ ! -f "$flake_root/flake.nix" ]]; do
+    [[ "$flake_root" != / ]] || fail "no flake.nix found from $project_dir upward"
+    parent=$($dirname_bin -- "$flake_root")
+    [[ "$parent" != "$flake_root" ]] || fail "no flake.nix found from $project_dir upward"
+    flake_root=$parent
+done
+flake_root=$($realpath_bin -- "$flake_root")
+
+# If the devShell does not provide Pixi, `nix develop ... -c pixi` could resolve
+# back to this shim. Fail explicitly instead of recursing forever.
+if [[ "${PIXI_NIX_SHIM_ACTIVE:-0}" == 1 ]]; then
+    printf 'pixi-nix-shim: recursive invocation detected; does this flake provide pixi?\n' >&2
+    exit 126
+fi
+export PIXI_NIX_SHIM_ACTIVE=1
+
+exec "$nix_bin" develop "$flake_root" -c pixi "$@"
