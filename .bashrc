@@ -2,18 +2,10 @@
 
 # Keep ordinary user-level command directories available without duplicating PATH
 # entries. The optional Positron Pixi-Nix shim lives at ~/.pixi/bin/pixi, but
-# ~/.pixi/bin is deliberately NOT kept on the interactive shell PATH: Pixi
+# ~/.pixi/bin is deliberately NOT added to the interactive shell PATH: Pixi
 # should become a normal shell command only after entering a project's Nix
 # development shell. Positron can still discover the shim at its standard
 # fallback location ~/.pixi/bin/pixi.
-#
-# Remove ~/.pixi/bin explicitly so re-sourcing this file also fixes an existing
-# shell whose PATH was populated by an older version of these dotfiles.
-PATH=":$PATH:"
-PATH="${PATH//:$HOME\/.pixi\/bin:/:}"
-PATH="${PATH#:}"
-PATH="${PATH%:}"
-
 for user_bin in "$HOME/.local/bin" "$HOME/bin"; do
     [[ ":${PATH:-}:" == *":$user_bin:"* ]] || PATH="$user_bin${PATH:+:$PATH}"
 done
