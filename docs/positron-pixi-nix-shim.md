@@ -19,14 +19,9 @@ It is idempotent. If an unrelated file already exists at that path, the installe
 
 The shared `.bashrc` keeps `~/.local/bin` on `PATH` so rootless-Nix commands such as `nix` remain available, but deliberately leaves `~/.pixi/bin` off the interactive shell `PATH`. As a result, `pixi` is not a normal shell command outside a project devShell. Positron still checks `~/.pixi/bin/pixi` directly as its fallback installation location, so IDE discovery continues to use the shim.
 
-After updating the dotfiles, start a new shell or run:
+After updating the dotfiles, start a new login shell (for example, disconnect and reconnect over SSH). If the current shell was started with an older configuration that already placed `~/.pixi/bin` on `PATH`, merely sourcing the new `.bashrc` does not remove that inherited PATH entry.
 
-```bash
-source ~/.bashrc
-hash -r
-```
-
-Expected shell behavior is:
+Expected behavior in a fresh shell is:
 
 ```text
 outside nix develop:  pixi -> not found
