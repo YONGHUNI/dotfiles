@@ -25,26 +25,36 @@ The shared Bash configuration keeps the usual user command directories available
 
 ## Optional Positron / Pixi integration
 
-For remote Linux hosts where Positron needs to discover Pixi but Pixi is intentionally provided by each project's Nix dev shell, this repository includes a portable shim:
+For remote Linux hosts where Positron needs to discover Pixi but Pixi is intentionally provided by each project's Nix flake instead of installed globally, this repository includes a portable shim:
 
 ```bash
 cd ~/dotfiles
 ./install-pixi-nix-shim.sh
 ```
 
-The installer places the shim at `~/.pixi/bin/pixi`, the fallback location Positron checks for Pixi. The shim locates the nearest `flake.nix`, enters that project's Nix dev shell, and forwards the original Pixi command to the Pixi executable provided by the dev shell.
+The installer places the shim at `~/.pixi/bin/pixi`, the fallback location Positron checks for Pixi. The shim locates the nearest `flake.nix` and invokes that project's `pixi` flake app directly with `nix run`.
 
 Conceptually:
 
 ```text
 ~/.pixi/bin/pixi
         ↓
-nix develop <flake-root>
+nix run <flake-root>#pixi -- <original arguments>
         ↓
 /nix/store/.../bin/pixi <original arguments>
 ```
 
-This helper is optional and is not part of the normal `install.sh` flow. It does not install Nix, Pixi, CUDA, or project dependencies, and it contains no machine-specific `/nix/store/<hash>-...` paths. The shim removes its own directory from the child `PATH` before entering the dev shell, preventing recursive invocation, and rejects unrelated non-Nix Pixi executables if the project forgot to provide Pixi.
+Compatible projects expose `apps.<system>.pixi`; the templates in [`nix-data-science-templates`](https://github.com/YONGHUNI/nix-data-science-templates) provide that app while still keeping `pixi` in the normal `nix develop` shell.
+
+The shim deliberately does not wrap IDE Pixi calls in `nix develop`. This keeps development-shell variables from being captured as Pixi activation state by Positron while preserving the normal interactive project workflow:
+
+```bash
+nix develop
+pixi install
+pixi run python analysis.py
+```
+
+This helper is optional and is not part of the normal `install.sh` flow. It does not install Nix, Pixi, CUDA, or project dependencies, and it contains no machine-specific `/nix/store/<hash>-...` paths.
 
 See [`docs/positron-pixi-nix-shim.md`](docs/positron-pixi-nix-shim.md) for behavior, requirements, update handling, and overwrite safeguards.
 
@@ -54,7 +64,7 @@ See [`docs/positron-pixi-nix-shim.md`](docs/positron-pixi-nix-shim.md) for behav
 - `.bashrc` - adaptive Powerline-style prompt with local/remote host state, memory usage, command timing, environment context, Git status, and user-command PATH handling.
 - `.vimrc` - vim-plug setup, ALE completion/linting/fixing, vim-slime tmux integration, and filetype rules for Python, C/CUDA/C++, R, Julia, Quarto, YAML, and Nix.
 - `.tmux.conf` - `C-a` prefix, vim-style pane navigation/resizing, vi copy mode, and a compact status bar. Mouse is disabled inside VS Code-compatible terminals.
-- `bin/pixi-nix-shim` - portable Positron-to-Pixi bridge that enters the project's Nix dev shell before invoking Pixi.
+- `bin/pixi-nix-shim` - portable Positron-to-Pixi bridge that invokes the project's Nix-pinned Pixi app without entering the project devShell.
 - `install-pixi-nix-shim.sh` - safe installer/updater for `~/.pixi/bin/pixi`; unrelated existing files are not overwritten unless explicitly requested.
 
 A global `.Rprofile` is intentionally not managed. R library paths and packages should come from the active project environment rather than a shared `~/R/library`, which keeps Nix/Pixi/renv-style environments isolated and reproducible.
