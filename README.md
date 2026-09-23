@@ -71,7 +71,7 @@ A global `.Rprofile` is intentionally not managed. R library paths and packages 
 
 ## Adaptive Bash prompt
 
-The first prompt line contains host, memory, and command-time information on the left. Environment and Git information is kept on the right.
+The first prompt line contains host, memory, and command-time information on the left. Environment and Git information is kept on the right. The host label is resolved from the current Linux UTS hostname rather than trusting an inherited `HOSTNAME` variable, so nested remote shells such as `srun --pty bash` show the compute node instead of the login node.
 
 A wide terminal can look roughly like:
 
