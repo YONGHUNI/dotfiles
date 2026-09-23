@@ -135,7 +135,23 @@ function build_custom_prompt() {
     fi
 
     # 3. Host info (red=remote, green=local)
-    local short_host=${HOSTNAME%%.*}
+    #
+    # Do not trust the inherited Bash HOSTNAME variable here. Nested remote
+    # execution such as `srun --pty bash` can inherit the login node's
+    # HOSTNAME even though the shell is now running on a compute node. Read the
+    # current Linux UTS hostname from /proc without spawning a process; fall
+    # back to the hostname command only when /proc is unavailable, then to the
+    # inherited variable as a last resort.
+    local short_host=""
+    if [[ -r /proc/sys/kernel/hostname ]]; then
+        IFS= read -r short_host < /proc/sys/kernel/hostname || short_host=""
+    fi
+    if [[ -z $short_host ]] && command -v hostname >/dev/null 2>&1; then
+        short_host=$(hostname 2>/dev/null || true)
+    fi
+    [[ -n $short_host ]] || short_host=${HOSTNAME:-unknown}
+    short_host=${short_host%%.*}
+
     local host_raw host_bg host_sep_fg
     if [[ -n ${SSH_CLIENT:-} || -n ${SSH_TTY:-} ]]; then
         host_raw="  ${short_host} "
