@@ -37,24 +37,29 @@ The shim:
 2. canonicalizes symlinked paths;
 3. walks upward to the nearest `flake.nix`;
 4. finds `nix` from the current `PATH` or common user/system installation locations;
-5. invokes the project's `pixi` flake app with `nix run`;
-6. forwards the original Pixi arguments unchanged.
+5. resolves the project's `packages.<system>.pixi` with `nix build --no-link --print-out-paths` (or falls back to `nix run` for app-only flakes);
+6. reads the pinned Pixi version and normalizes the TLS root certificate option when needed (`native` for versions below 0.69, `system` for newer versions);
+7. executes the binary directly with the original arguments unchanged.
 
 Conceptually:
 
 ```text
 ~/.pixi/bin/pixi
         ↓
-nix run <flake-root>#pixi -- <original arguments>
+nix build --no-link --print-out-paths <flake-root>#pixi
         ↓
 /nix/store/.../bin/pixi <original arguments>
+
+App-only flakes fall back to two `nix run` invocations for version discovery and execution.
 ```
 
-The project flake must expose:
+For the fast path, the project flake exposes:
 
 ```text
-apps.<system>.pixi
+packages.<system>.pixi
 ```
+
+Legacy app-only flakes exposing `apps.<system>.pixi` remain supported through a slower fallback.
 
 The data-science templates in `YONGHUNI/nix-data-science-templates` expose both `apps.<system>.pixi` and `packages.<system>.pixi` while continuing to provide Pixi inside the normal development shell.
 
@@ -66,7 +71,7 @@ pixi install
 pixi run python analysis.py
 ```
 
-The shim deliberately contains no fixed `/nix/store/<hash>-...` paths, so Nix upgrades and garbage collection do not invalidate it. It does not install Pixi, install Nix, configure CUDA, or modify project dependencies.
+The shim deliberately contains no fixed `/nix/store/<hash>-...` paths, so Nix upgrades and garbage collection do not invalidate it. It does not install Pixi globally, install Nix, configure CUDA, or modify project dependencies. The first `nix build` may realize the pinned Pixi package into the Nix store if not already present.
 
 Known Nix locations checked when Positron starts with a reduced GUI environment include:
 
@@ -85,9 +90,19 @@ The first path is the default wrapper location used by [`rootless-nix-bootstrap`
 - `nix`
 - GNU/coreutils-style `realpath` and `dirname`
 - a project with `flake.nix`
-- a flake app named `pixi` (`apps.<system>.pixi`)
+- a flake package named `pixi` (`packages.<system>.pixi`), or a fallback app (`apps.<system>.pixi`)
 
-If the project flake does not expose the `pixi` app, `nix run <flake>#pixi` fails explicitly instead of falling back to an unrelated global Pixi.
+If neither flake output exposes `pixi`, the shim fails instead of falling back to an unrelated global installation.
+
+## TLS compatibility
+
+Older Pixi (e.g. 0.68.1) accepts `native` but not `system` for `PIXI_TLS_ROOT_CERTS`. Pixi 0.69 and later accept `system`. The shim checks the project-pinned version at invocation time, normalizes incompatible `native`/`system` spellings, and preserves explicit `webpki`/`all` preferences. It does not alter the ordinary `nix develop` shell or the project's `pixi.toml`.
+
+To run the local mocked regression checks:
+
+```bash
+bash tests/test-pixi-nix-shim.sh
+```
 
 ## Update
 
