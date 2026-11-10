@@ -15,7 +15,7 @@ if [[ "$1" == build && "$2" == --no-link && "$3" == --print-out-paths ]]; then
     [[ "${APP_ONLY:-0}" == 1 ]] && exit 1
     printf '%s\n' "$STORE_DIR"
 elif [[ "$1" == run && "$3" == -- ]]; then
-    exec "$STORE_DIR/bin/pixi" "${:4}"
+    exec "$STORE_DIR/bin/pixi" "${@:4}"
 else
     exit 2
 fi
