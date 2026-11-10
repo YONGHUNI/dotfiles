@@ -92,11 +92,38 @@ while [[ ! -f "$flake_root/flake.nix" ]]; do
 done
 flake_root=$($realpath_bin -- "$flake_root")
 
-# Run the project-pinned Pixi app directly instead of entering `nix develop`.
-# This keeps interactive development shells unchanged while preventing Nix
-# devShell variables (IN_NIX_SHELL, NIX_*, devShell PATH/SHELL, etc.) from being
-# mistaken for Pixi activation variables by tools such as Positron.
-#
-# Compatible project flakes must expose `apps.<system>.pixi` (the project
-# templates also expose `packages.<system>.pixi`).
-exec "$nix_bin" run "$flake_root#pixi" -- "$@"
+# Fast path: realize the project-pinned Pixi package once and run its
+# binary directly. App-only flakes fall back to the original nix run route
+# (two runs, for version detection and execution).
+if pixi_store=$("$nix_bin" build --no-link --print-out-paths "$flake_root#pixi" 2>/dev/null); then
+    [[ -n "$pixi_store" && "$pixi_store" != *$'\n'* ]] || fail 'unexpected Pixi store path output'
+    pixi_bin="$pixi_store/bin/pixi"
+    [[ -x "$pixi_bin" ]] || fail "Pixi executable missing: $pixi_bin"
+    pixi_command=("$pixi_bin")
+else
+    pixi_command=("$nix_bin" run "$flake_root#pixi" --)
+fi
+
+version_output=$("${pixi_command[@]}" --version) || fail 'could not determine Pixi version'
+if [[ "$version_output" =~ ^pixi[[:space:]]+([0-9]+)\.([0-9]+)\. ]]; then
+    major=${BASH_REMATCH[1]}
+    minor=${BASH_REMATCH[2]}
+else
+    fail "unexpected Pixi version: $version_output"
+fi
+
+# Pixi < 0.69 accepts 'native', not 'system'. Pixi 0.68.1 on NixOS
+# may supply 'system' even if the parent shell does not export it.
+# Normalize only incompatible spellings; preserve explicit user choices
+# such as webpki/all. Do not override newer Pixi's default when unset.
+if (( major == 0 && minor < 69 )); then
+    case "${PIXI_TLS_ROOT_CERTS:-}" in
+        ''|system) export PIXI_TLS_ROOT_CERTS=native ;;
+    esac
+elif [[ "${PIXI_TLS_ROOT_CERTS:-}" == native ]]; then
+    export PIXI_TLS_ROOT_CERTS=system
+fi
+
+# Do not enter nix develop: IDE-facing Pixi must not inherit the
+# interactive development shell's activation variables.
+exec "${pixi_command[@]}" "$@"
