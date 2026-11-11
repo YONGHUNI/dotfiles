@@ -26,6 +26,20 @@ find_executable() {
     return 1
 }
 
+# Positron's remote extension host runs outside the project's nix develop
+# shellHook. On Sapelo2, keep Pixi's package/repodata cache on node-local scratch
+# even when the shim is invoked directly by the IDE. Preserve explicit cache
+# settings; do not change this policy on unrelated non-Slurm hosts.
+if [[ -n "${SLURM_JOB_ID:-}" && -n "${USER:-}" &&
+      -z "${PIXI_CACHE_DIR:-}" && -z "${RATTLER_CACHE_DIR:-}" &&
+      -d "/lscratch/$USER" ]]; then
+    scratch_pixi_cache="/lscratch/$USER/pixi-cache"
+    if [[ -d "$scratch_pixi_cache" && -w "$scratch_pixi_cache" ]] ||
+       mkdir -p -- "$scratch_pixi_cache" 2>/dev/null; then
+        export PIXI_CACHE_DIR="$scratch_pixi_cache"
+    fi
+fi
+
 # Positron may launch with a smaller PATH than an interactive shell. Resolve
 # required tools explicitly instead of embedding machine-specific Nix store
 # paths or mutating the user's login environment.
