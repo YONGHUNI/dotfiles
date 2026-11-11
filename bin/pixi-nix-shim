@@ -113,7 +113,7 @@ elif [[ -r "${XDG_CONFIG_HOME:-$HOME/.config}/rootless-nix-bootstrap/state.env" 
 # On NixOS and hosts with a directly accessible /nix/store, use the fast
 # build-and-exec route. Fallback also supports apps-only project flakes.
 elif pixi_store=$("$nix_bin" build --no-link --print-out-paths "$flake_root#pixi" 2>/dev/null) &&
-    [[ -n "$pixi_store" && "$pixi_store" != *$'\\n'* && -x "$pixi_store/bin/pixi" ]]; then
+    [[ -n "$pixi_store" && -x "$pixi_store/bin/pixi" ]]; then
     pixi_command=("$pixi_store/bin/pixi")
 else
     pixi_command=("$nix_bin" run "$flake_root#pixi" --)
