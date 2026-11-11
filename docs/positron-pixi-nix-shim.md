@@ -37,7 +37,7 @@ The shim:
 2. canonicalizes symlinked paths;
 3. walks upward to the nearest `flake.nix`;
 4. finds `nix` from the current `PATH` or common user/system installation locations;
-5. resolves the project's `packages.<system>.pixi` with `nix build --no-link --print-out-paths` (or falls back to `nix run` for app-only flakes);
+5. inside an existing `nix develop`, uses the active Pixi directly (no nested user namespace); on a rootless-nix-bootstrap host without a host-visible Nix store, uses `nix run <flake>#pixi` to keep execution inside the namespace; otherwise resolves `packages.<system>.pixi` with `nix build --no-link --print-out-paths`, falling back to `nix run` for app-only flakes;
 6. reads the pinned Pixi version and normalizes the TLS root certificate option when needed (`native` for versions below 0.69, `system` for newer versions);
 7. executes the binary directly with the original arguments unchanged.
 
@@ -113,3 +113,19 @@ After updating the dotfiles repository, rerun:
 ```
 
 The managed copy at `~/.pixi/bin/pixi` will be replaced only when its contents changed.
+
+## Sapelo2 / rootless Nix notes
+
+When rootless-nix-bootstrap uses `nix-user-chroot`, the Nix store may exist only inside the chroot namespace. Executing a `/nix/store/...` path **after** the `nix build` wrapper returns is not portable. The shim therefore uses `nix run <flake>#pixi` on such hosts. It runs once to determine the pinned Pixi version and again to execute the requested Pixi command, applying the matching TLS option.
+
+The shim is not intended to be placed on the interactive shell PATH. If invoked explicitly from inside `nix develop`, it now uses the active Pixi rather than nesting the rootless Nix wrapper. Positron's remote extension host generally runs outside the project devShell, where the rootless `nix run` path applies.
+
+To test after updating on Sapelo2, run `~/.pixi/bin/pixi --version` **outside** `nix develop` from the project directory. Update the managed copy with `./install-pixi-nix-shim.sh`; do not assume a git pull alone replaces the installed script.
+
+## Slurm node-local Pixi cache
+
+Positron's extension host can invoke the Pixi shim without sourcing a project's `nix develop` shellHook. On Sapelo2, this used to leave `PIXI_CACHE_DIR` unset and cause Pixi/rattler to warn about using a network-filesystem repodata cache at `~/.cache/rattler`.
+
+When `SLURM_JOB_ID` is present and `/lscratch/$USER` is available, the shim now sets `PIXI_CACHE_DIR=/lscratch/$USER/pixi-cache` for its Pixi subprocess. Explicit `PIXI_CACHE_DIR` and `RATTLER_CACHE_DIR` settings always take precedence. The project `.pixi/config.toml` still controls `detached-environments` separately. It does not create or install an environment during interpreter discovery.
+
+This is not a replacement for the project's shellHook, which continues to set the cache path for direct `nix develop` usage.

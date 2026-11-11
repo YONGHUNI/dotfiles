@@ -1,0 +1,16 @@
+name: Pixi shim regression tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  bash-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Bash syntax
+        run: |
+          bash -n bin/pixi-nix-shim
+          bash -n tests/test-pixi-nix-shim.sh
+      - name: Exercise Pixi shim transport modes
+        run: bash tests/test-pixi-nix-shim.sh

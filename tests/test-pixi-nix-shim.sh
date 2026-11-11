@@ -32,6 +32,7 @@ else
 fi
 MOCK
 chmod +x "$tmp/mock-bin/nix" "$tmp/store/bin/pixi"
+unset IN_NIX_SHELL
 export PATH="$tmp/mock-bin:$PATH" STORE_DIR="$tmp/store" CALL_LOG="$tmp/calls"
 
 check() {
@@ -63,4 +64,23 @@ output=$(cd "$tmp/outside" && env -u PIXI_TLS_ROOT_CERTS MOCK_VERSION=0.68.1 bas
 output=$(cd "$tmp/project with spaces/subdir" && env -u PIXI_TLS_ROOT_CERTS APP_ONLY=1 MOCK_VERSION=0.68.1 bash "$shim" run R)
 [[ "$output" == *'tls=native'* ]] || exit 1
 [[ $(wc -l < "$CALL_LOG") -eq 3 ]] || exit 1
-echo 'pixi-nix-shim: 9 checks passed'
+# Simulate rootless-nix-bootstrap without a host-visible /nix/store.
+# The mock run executes Pixi inside the namespace, twice (version + command).
+mkdir -p "$tmp/rootless-config/rootless-nix-bootstrap"
+: > "$tmp/rootless-config/rootless-nix-bootstrap/state.env"
+: > "$CALL_LOG"
+rootless_output=$(cd "$tmp/project with spaces/subdir" && env -u IN_NIX_SHELL -u PIXI_TLS_ROOT_CERTS \
+    XDG_CONFIG_HOME="$tmp/rootless-config" MOCK_VERSION=0.68.1 bash "$shim" run --frozen python --version)
+[[ "$rootless_output" == *'tls=native'* ]] || { echo "Bad rootless TLS: $rootless_output" >&2; exit 1; }
+[[ $(wc -l < "$CALL_LOG") -eq 2 ]] || { echo "Expected two Nix run calls" >&2; exit 1; }
+
+# Inside nix develop, do not call Nix again. Use the active Pixi on PATH.
+mkdir -p "$tmp/devshell-bin"
+cp "$tmp/store/bin/pixi" "$tmp/devshell-bin/pixi"
+: > "$CALL_LOG"
+devshell_output=$(cd "$tmp/project with spaces/subdir" && env -u PIXI_TLS_ROOT_CERTS \
+    IN_NIX_SHELL=pure PATH="$tmp/devshell-bin:$PATH" MOCK_VERSION=0.83.0 bash "$shim" run python --version)
+[[ "$devshell_output" == *'tls=<unset>'* ]] || { echo "Bad devShell TLS: $devshell_output" >&2; exit 1; }
+[[ ! -s "$CALL_LOG" ]] || { echo "Nested Nix call inside devShell" >&2; exit 1; }
+
+echo 'pixi-nix-shim: 11 checks passed'

@@ -26,6 +26,20 @@ find_executable() {
     return 1
 }
 
+# Positron's remote extension host runs outside the project's nix develop
+# shellHook. On Sapelo2, keep Pixi's package/repodata cache on node-local scratch
+# even when the shim is invoked directly by the IDE. Preserve explicit cache
+# settings; do not change this policy on unrelated non-Slurm hosts.
+if [[ -n "${SLURM_JOB_ID:-}" && -n "${USER:-}" &&
+      -z "${PIXI_CACHE_DIR:-}" && -z "${RATTLER_CACHE_DIR:-}" &&
+      -d "/lscratch/$USER" ]]; then
+    scratch_pixi_cache="/lscratch/$USER/pixi-cache"
+    if [[ -d "$scratch_pixi_cache" && -w "$scratch_pixi_cache" ]] ||
+       mkdir -p -- "$scratch_pixi_cache" 2>/dev/null; then
+        export PIXI_CACHE_DIR="$scratch_pixi_cache"
+    fi
+fi
+
 # Positron may launch with a smaller PATH than an interactive shell. Resolve
 # required tools explicitly instead of embedding machine-specific Nix store
 # paths or mutating the user's login environment.
@@ -92,14 +106,29 @@ while [[ ! -f "$flake_root/flake.nix" ]]; do
 done
 flake_root=$($realpath_bin -- "$flake_root")
 
-# Fast path: realize the project-pinned Pixi package once and run its
-# binary directly. App-only flakes fall back to the original nix run route
-# (two runs, for version detection and execution).
-if pixi_store=$("$nix_bin" build --no-link --print-out-paths "$flake_root#pixi" 2>/dev/null); then
-    [[ -n "$pixi_store" && "$pixi_store" != *$'\n'* ]] || fail 'unexpected Pixi store path output'
-    pixi_bin="$pixi_store/bin/pixi"
-    [[ -x "$pixi_bin" ]] || fail "Pixi executable missing: $pixi_bin"
-    pixi_command=("$pixi_bin")
+# Prefer the active devShell Pixi when already inside nix develop. Running
+# the rootless Nix wrapper again from inside nix-user-chroot attempts a nested
+# user namespace and can fail with "unshare failed: EPERM".
+if [[ -n "${IN_NIX_SHELL:-}" ]]; then
+    active_pixi=$(type -P pixi 2>/dev/null || true)
+    [[ -n "$active_pixi" && -x "$active_pixi" ]] ||
+        fail 'inside nix develop but pixi is missing from PATH'
+    [[ "$($realpath_bin -- "$active_pixi")" != "$($realpath_bin -- "${BASH_SOURCE[0]}")" ]] ||
+        fail 'recursive Pixi shim invocation inside nix develop'
+    pixi_command=("$active_pixi")
+
+# On rootless-nix-bootstrap hosts, the physical Nix store is only mounted
+# inside nix-user-chroot. A store path returned by a completed "nix build"
+# cannot be executed from the host namespace; keep the Pixi process inside
+# the namespace by using "nix run" instead.
+elif [[ -r "${XDG_CONFIG_HOME:-$HOME/.config}/rootless-nix-bootstrap/state.env" && ! -d /nix/store ]]; then
+    pixi_command=("$nix_bin" run "$flake_root#pixi" --)
+
+# On NixOS and hosts with a directly accessible /nix/store, use the fast
+# build-and-exec route. Fallback also supports apps-only project flakes.
+elif pixi_store=$("$nix_bin" build --no-link --print-out-paths "$flake_root#pixi" 2>/dev/null) &&
+    [[ -n "$pixi_store" && -x "$pixi_store/bin/pixi" ]]; then
+    pixi_command=("$pixi_store/bin/pixi")
 else
     pixi_command=("$nix_bin" run "$flake_root#pixi" --)
 fi
